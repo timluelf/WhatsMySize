@@ -23,7 +23,7 @@ export const metadata = {
   },
   robots: { index: true, follow: true },
   verification: {
-    google: 'eydrxH3uR4tFWN87L9F2P-DyvsG8nzGIQ-SuvGWzr7s',
+    google: ['eydrxH3uR4tFWN87L9F2P-DyvsG8nzGIQ-SuvGWzr7s', 'CLhTS130VG7a5rGcs5L15TjFMST4rnAXON9YsG4X6QI'],
   },
 };
 
