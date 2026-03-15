@@ -22,6 +22,9 @@ export const metadata = {
     description: 'Find your perfect clothing size across 25+ brands.',
   },
   robots: { index: true, follow: true },
+  verification: {
+    google: '56cd58a6efed85d8',
+  },
 };
 
 export default function RootLayout({ children }) {
