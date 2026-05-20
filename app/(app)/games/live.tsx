@@ -100,14 +100,24 @@ export default function LiveGameScreen() {
 
             <View style={styles.actions}>
               <Button
-                label="Undo last play"
+                label="Undo"
                 variant="secondary"
                 onPress={undo}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="Box score"
+                variant="secondary"
+                onPress={() => router.push('/games/box-score')}
                 style={{ flex: 1 }}
               />
             </View>
           </>
         )}
+
+        {final ? (
+          <Button label="View box score" onPress={() => router.push('/games/box-score')} />
+        ) : null}
 
         <Button
           label={final ? 'Back to home' : 'Quit game'}

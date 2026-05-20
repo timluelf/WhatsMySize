@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
+import { LineupEditor } from '@/components/LineupEditor';
 import { useGame } from '@/lib/gameStore';
 import { SEED_TEAMS } from '@/lib/seed';
 import { Team } from '@/lib/scoring';
@@ -11,17 +12,40 @@ import { colors, radius, spacing, typography } from '@/lib/theme';
 export default function NewGameScreen() {
   const router = useRouter();
   const { startGame } = useGame();
+
   const [awayId, setAwayId] = useState(SEED_TEAMS[0].id);
   const [homeId, setHomeId] = useState(SEED_TEAMS[1].id);
 
   const away = useMemo(() => SEED_TEAMS.find((t) => t.id === awayId)!, [awayId]);
   const home = useMemo(() => SEED_TEAMS.find((t) => t.id === homeId)!, [homeId]);
 
+  const [awayLineup, setAwayLineup] = useState<string[]>(() =>
+    away.players.map((p) => p.id)
+  );
+  const [homeLineup, setHomeLineup] = useState<string[]>(() =>
+    home.players.map((p) => p.id)
+  );
+
+  const [awayCollapsed, setAwayCollapsed] = useState(true);
+  const [homeCollapsed, setHomeCollapsed] = useState(true);
+
+  function selectAway(id: string) {
+    setAwayId(id);
+    const t = SEED_TEAMS.find((x) => x.id === id)!;
+    setAwayLineup(t.players.map((p) => p.id));
+  }
+  function selectHome(id: string) {
+    setHomeId(id);
+    const t = SEED_TEAMS.find((x) => x.id === id)!;
+    setHomeLineup(t.players.map((p) => p.id));
+  }
+
   const sameTeam = awayId === homeId;
+  const emptyLineup = awayLineup.length === 0 || homeLineup.length === 0;
 
   function start() {
-    if (sameTeam) return;
-    startGame({ away, home, totalInnings: 7 });
+    if (sameTeam || emptyLineup) return;
+    startGame({ away, home, awayLineup, homeLineup, totalInnings: 7 });
     router.replace('/games/live');
   }
 
@@ -31,13 +55,30 @@ export default function NewGameScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>New game</Text>
           <Text style={styles.subtitle}>
-            Choose the visiting and home teams. Lineups default to roster order — you
-            can rearrange in a later version.
+            Pick teams, set the batting order, then play ball.
           </Text>
         </View>
 
-        <TeamPicker label="Visiting team" selectedId={awayId} onSelect={setAwayId} />
-        <TeamPicker label="Home team" selectedId={homeId} onSelect={setHomeId} />
+        <TeamPicker label="Visiting team" selectedId={awayId} onSelect={selectAway} />
+        <TeamPicker label="Home team" selectedId={homeId} onSelect={selectHome} />
+
+        <LineupEditor
+          title="VISITING LINEUP"
+          team={away}
+          lineup={awayLineup}
+          onChange={setAwayLineup}
+          collapsed={awayCollapsed}
+          onToggleCollapsed={() => setAwayCollapsed((c) => !c)}
+        />
+
+        <LineupEditor
+          title="HOME LINEUP"
+          team={home}
+          lineup={homeLineup}
+          onChange={setHomeLineup}
+          collapsed={homeCollapsed}
+          onToggleCollapsed={() => setHomeCollapsed((c) => !c)}
+        />
 
         <View style={styles.preview}>
           <Text style={styles.previewTitle}>Matchup</Text>
@@ -50,8 +91,13 @@ export default function NewGameScreen() {
         {sameTeam ? (
           <Text style={styles.error}>Pick two different teams to start.</Text>
         ) : null}
+        {emptyLineup ? (
+          <Text style={styles.error}>
+            Each team needs at least one batter. Add players from the bench.
+          </Text>
+        ) : null}
 
-        <Button label="Play ball" onPress={start} disabled={sameTeam} />
+        <Button label="Play ball" onPress={start} disabled={sameTeam || emptyLineup} />
         <Button label="Cancel" variant="ghost" onPress={() => router.back()} />
       </ScrollView>
     </SafeAreaView>

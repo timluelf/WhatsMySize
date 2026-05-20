@@ -59,9 +59,11 @@ type Bases = {
 export type AtBatRecord = {
   inning: number;
   half: 'top' | 'bottom';
+  battingTeamId: string;
   batterId: string;
   event: PlayEvent;
   runsScored: number;
+  runnersScored: string[];
   outsRecorded: number;
 };
 
@@ -157,57 +159,63 @@ export function applyEvent(state: GameState, event: PlayEvent): GameState {
   const idx = battingTeam === 'away' ? state.awayIndex : state.homeIndex;
   const batterId = lineup[idx % lineup.length];
 
+  const prior: Bases = { ...state.bases };
   let bases: Bases = { ...state.bases };
-  let runsScored = 0;
+  const runnersScored: string[] = [];
   let outsAdded = 0;
   let hitAdded = 0;
 
   switch (event) {
     case 'single':
-      if (bases.third) runsScored += 1;
-      bases = { first: batterId, second: bases.first, third: bases.second };
+      if (prior.third) runnersScored.push(prior.third);
+      bases = { first: batterId, second: prior.first, third: prior.second };
       hitAdded = 1;
       break;
     case 'double':
-      if (bases.third) runsScored += 1;
-      if (bases.second) runsScored += 1;
-      bases = { first: null, second: batterId, third: bases.first };
+      if (prior.third) runnersScored.push(prior.third);
+      if (prior.second) runnersScored.push(prior.second);
+      bases = { first: null, second: batterId, third: prior.first };
       hitAdded = 1;
       break;
     case 'triple':
-      runsScored +=
-        (bases.first ? 1 : 0) + (bases.second ? 1 : 0) + (bases.third ? 1 : 0);
+      if (prior.third) runnersScored.push(prior.third);
+      if (prior.second) runnersScored.push(prior.second);
+      if (prior.first) runnersScored.push(prior.first);
       bases = { first: null, second: null, third: batterId };
       hitAdded = 1;
       break;
     case 'hr':
-      runsScored =
-        1 + (bases.first ? 1 : 0) + (bases.second ? 1 : 0) + (bases.third ? 1 : 0);
+      if (prior.third) runnersScored.push(prior.third);
+      if (prior.second) runnersScored.push(prior.second);
+      if (prior.first) runnersScored.push(prior.first);
+      runnersScored.push(batterId);
       bases = { first: null, second: null, third: null };
       hitAdded = 1;
       break;
     case 'walk': {
       // Force runners only
-      if (bases.first) {
-        if (bases.second) {
-          if (bases.third) runsScored += 1;
-          bases.third = bases.second;
+      if (prior.first) {
+        if (prior.second) {
+          if (prior.third) runnersScored.push(prior.third);
+          bases.third = prior.second;
         }
-        bases.second = bases.first;
+        bases.second = prior.first;
       }
       bases.first = batterId;
       break;
     }
     case 'sacrifice':
       outsAdded = 1;
-      if (bases.third) runsScored += 1;
-      bases = { first: null, second: bases.first, third: bases.second };
+      if (prior.third) runnersScored.push(prior.third);
+      bases = { first: null, second: prior.first, third: prior.second };
       break;
     case 'strikeout':
     case 'out':
       outsAdded = 1;
       break;
   }
+
+  const runsScored = runnersScored.length;
 
   // Build the next state piece by piece
   const inningIdx = state.inning - 1;
@@ -236,9 +244,11 @@ export function applyEvent(state: GameState, event: PlayEvent): GameState {
       {
         inning: state.inning,
         half: state.half,
+        battingTeamId: battingTeam === 'away' ? state.away.id : state.home.id,
         batterId,
         event,
         runsScored,
+        runnersScored,
         outsRecorded: outsAdded,
       },
     ],
