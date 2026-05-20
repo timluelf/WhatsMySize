@@ -25,13 +25,16 @@ const UPCOMING_FEATURES = [
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { profile, signOut, joinTeam } = useAuth();
+  const { profile, signOut, joinTeam, createTeam } = useAuth();
   const { game, resumeGame } = useGame();
   const [recent, setRecent] = useState<StoredGameSummary[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [creatingTeam, setCreatingTeam] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const loadGames = useCallback(async () => {
     if (!isSupabaseConfigured || !profile || profile.id.startsWith('demo-')) return;
@@ -69,6 +72,19 @@ export default function HomeScreen() {
       setJoinError(err instanceof Error ? err.message : 'Could not join team');
     } finally {
       setJoining(false);
+    }
+  }
+
+  async function handleCreateTeam() {
+    setCreateError(null);
+    setCreatingTeam(true);
+    try {
+      await createTeam(newTeamName);
+      setNewTeamName('');
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Could not create team');
+    } finally {
+      setCreatingTeam(false);
     }
   }
 
@@ -118,6 +134,28 @@ export default function HomeScreen() {
               <Text style={styles.chevron}>›</Text>
             </View>
           </Pressable>
+        ) : profile.role === 'manager' ? (
+          <View style={[styles.card, { borderColor: colors.accent }]}>
+            <Text style={styles.cardEyebrow}>CREATE YOUR TEAM</Text>
+            <Text style={styles.cardTitle}>You're a manager without a team</Text>
+            <Text style={styles.muted}>
+              Every manager runs a team. Give yours a name and we'll generate an
+              invite code you can share with your roster.
+            </Text>
+            <Input
+              placeholder="e.g. Dewey Decimals"
+              value={newTeamName}
+              onChangeText={setNewTeamName}
+              autoCapitalize="words"
+            />
+            {createError ? <Text style={styles.error}>{createError}</Text> : null}
+            <Button
+              label="Create team"
+              onPress={handleCreateTeam}
+              loading={creatingTeam}
+              disabled={!newTeamName.trim()}
+            />
+          </View>
         ) : (
           <View style={[styles.card, { borderColor: colors.accent }]}>
             <Text style={styles.cardEyebrow}>JOIN A TEAM</Text>

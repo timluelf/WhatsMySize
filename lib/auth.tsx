@@ -37,6 +37,7 @@ type AuthContextValue = AuthState & {
     teamName?: string;
   }) => Promise<void>;
   completeProfile: (updates: Partial<Profile>) => Promise<void>;
+  createTeam: (name: string) => Promise<void>;
   joinTeam: (code: string) => Promise<void>;
   leaveTeam: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -164,6 +165,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', merged.id);
         if (error) throw error;
         setProfile(merged);
+      },
+
+      async createTeam(name) {
+        if (!profile) throw new Error('Not signed in');
+        if (profile.role !== 'manager') {
+          throw new Error('Only managers can create a team');
+        }
+        if (profile.teamId) throw new Error('You already have a team');
+        const trimmed = name.trim();
+        if (!trimmed) throw new Error('Team name required');
+
+        if (!isSupabaseConfigured) {
+          const updated: Profile = {
+            ...profile,
+            teamId: `team-${Date.now()}`,
+            teamName: trimmed,
+          };
+          await AsyncStorage.setItem(DEMO_PROFILE_KEY, JSON.stringify(updated));
+          setProfile(updated);
+          return;
+        }
+
+        const { data: team, error } = await supabase!
+          .from('teams')
+          .insert({ name: trimmed, manager_id: profile.id })
+          .select('id, name')
+          .single();
+        if (error) throw error;
+
+        const { error: updateErr } = await supabase!
+          .from('profiles')
+          .update({ team_id: team.id })
+          .eq('id', profile.id);
+        if (updateErr) throw updateErr;
+
+        setProfile({ ...profile, teamId: team.id, teamName: team.name });
       },
 
       async joinTeam(code) {
