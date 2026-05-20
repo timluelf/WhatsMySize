@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { isSupabaseConfigured, supabase } from './supabase';
@@ -50,6 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // While signUp is running we set its own profile state authoritatively.
+  // The onAuthStateChange listener races against the team/profile inserts,
+  // so it would otherwise overwrite with a fallback profile.
+  const signingUpRef = useRef(false);
+
   useEffect(() => {
     let active = true;
 
@@ -70,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (active) setLoading(false);
 
       supabase!.auth.onAuthStateChange(async (_event, session) => {
+        if (signingUpRef.current) return;
         if (!session?.user) {
           setProfile(null);
           return;
@@ -124,28 +131,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(demo);
           return;
         }
-        const { data, error } = await supabase!.auth.signUp({ email, password });
-        if (error) throw error;
-        if (!data.user) throw new Error('Signup did not return a user');
 
-        let teamId: string | null = null;
-        if (role === 'manager' && teamName) {
-          const { data: team, error: teamErr } = await supabase!
-            .from('teams')
-            .insert({ name: teamName, manager_id: data.user.id })
-            .select('id')
-            .single();
-          if (teamErr) throw teamErr;
-          teamId = team.id;
+        signingUpRef.current = true;
+        try {
+          const { data, error } = await supabase!.auth.signUp({ email, password });
+          if (error) throw error;
+          if (!data.user) throw new Error('Signup did not return a user');
+
+          // Insert the profile row first (without a team). This guarantees that
+          // role='manager' is durable even if the team insert later fails — the
+          // home screen will show a "Create your team" recovery card.
+          const { error: profileErr } = await supabase!.from('profiles').insert({
+            id: data.user.id,
+            email,
+            display_name: displayName,
+            role,
+            team_id: null,
+          });
+          if (profileErr) throw profileErr;
+
+          let teamId: string | null = null;
+          let teamNameOut: string | null = null;
+          if (role === 'manager' && teamName) {
+            const trimmedTeam = teamName.trim();
+            const { data: team, error: teamErr } = await supabase!
+              .from('teams')
+              .insert({ name: trimmedTeam, manager_id: data.user.id })
+              .select('id, name')
+              .single();
+            if (teamErr) throw teamErr;
+            teamId = team.id;
+            teamNameOut = team.name;
+
+            const { error: linkErr } = await supabase!
+              .from('profiles')
+              .update({ team_id: teamId })
+              .eq('id', data.user.id);
+            if (linkErr) throw linkErr;
+          }
+
+          // Set local state authoritatively to bypass the racey listener.
+          setProfile({
+            id: data.user.id,
+            email,
+            displayName,
+            role,
+            teamId,
+            teamName: teamNameOut,
+            needsProfileSetup: false,
+          });
+        } finally {
+          signingUpRef.current = false;
         }
-        const { error: profileErr } = await supabase!.from('profiles').insert({
-          id: data.user.id,
-          email,
-          display_name: displayName,
-          role,
-          team_id: teamId,
-        });
-        if (profileErr) throw profileErr;
       },
 
       async completeProfile(updates) {
