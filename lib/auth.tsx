@@ -37,6 +37,8 @@ type AuthContextValue = AuthState & {
     teamName?: string;
   }) => Promise<void>;
   completeProfile: (updates: Partial<Profile>) => Promise<void>;
+  joinTeam: (code: string) => Promise<void>;
+  leaveTeam: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -115,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role,
             teamId: role === 'manager' ? `team-${Date.now()}` : null,
             teamName: role === 'manager' ? teamName ?? null : null,
-            needsProfileSetup: role === 'individual',
+            needsProfileSetup: false,
           };
           await AsyncStorage.setItem(DEMO_PROFILE_KEY, JSON.stringify(demo));
           setProfile(demo);
@@ -162,6 +164,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', merged.id);
         if (error) throw error;
         setProfile(merged);
+      },
+
+      async joinTeam(code) {
+        if (!profile) throw new Error('Not signed in');
+        const trimmed = code.trim();
+        if (!trimmed) throw new Error('Enter an invite code');
+
+        if (!isSupabaseConfigured) {
+          const updated: Profile = {
+            ...profile,
+            teamId: `team-${trimmed.toLowerCase()}`,
+            teamName: `Team ${trimmed.toUpperCase()}`,
+            needsProfileSetup: false,
+          };
+          await AsyncStorage.setItem(DEMO_PROFILE_KEY, JSON.stringify(updated));
+          setProfile(updated);
+          return;
+        }
+
+        const { data: team, error } = await supabase!
+          .from('teams')
+          .select('id, name')
+          .eq('invite_code', trimmed)
+          .maybeSingle();
+        if (error) throw error;
+        if (!team) throw new Error('No team found with that code');
+
+        const { error: updateErr } = await supabase!
+          .from('profiles')
+          .update({ team_id: team.id })
+          .eq('id', profile.id);
+        if (updateErr) throw updateErr;
+
+        setProfile({
+          ...profile,
+          teamId: team.id,
+          teamName: team.name,
+          needsProfileSetup: false,
+        });
+      },
+
+      async leaveTeam() {
+        if (!profile) throw new Error('Not signed in');
+        if (profile.role === 'manager') {
+          throw new Error('Managers cannot leave their own team');
+        }
+        if (!isSupabaseConfigured) {
+          const updated: Profile = { ...profile, teamId: null, teamName: null };
+          await AsyncStorage.setItem(DEMO_PROFILE_KEY, JSON.stringify(updated));
+          setProfile(updated);
+          return;
+        }
+        const { error } = await supabase!
+          .from('profiles')
+          .update({ team_id: null })
+          .eq('id', profile.id);
+        if (error) throw error;
+        setProfile({ ...profile, teamId: null, teamName: null });
       },
 
       async signOut() {

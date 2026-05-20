@@ -28,13 +28,10 @@ function AuthGate() {
   useEffect(() => {
     if (loading) return;
     const inAuthGroup = segments[0] === '(auth)';
-    const onProfileSetup = segments[1] === 'profile-setup';
 
     if (!profile && !inAuthGroup) {
       router.replace('/sign-in');
-    } else if (profile && profile.needsProfileSetup && !onProfileSetup) {
-      router.replace('/profile-setup');
-    } else if (profile && !profile.needsProfileSetup && inAuthGroup) {
+    } else if (profile && inAuthGroup) {
       router.replace('/');
     }
   }, [profile, loading, segments, router]);

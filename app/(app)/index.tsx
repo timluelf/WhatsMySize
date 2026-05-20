@@ -1,8 +1,16 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
+import { Input } from '@/components/Input';
 import { useAuth } from '@/lib/auth';
 import { useGame } from '@/lib/gameStore';
 import { StoredGameSummary, listRecentGames } from '@/lib/games';
@@ -10,7 +18,6 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 
 const UPCOMING_FEATURES = [
-  'Roster management',
   'Schedule & results',
   'League standings',
   'Player & season stats',
@@ -18,20 +25,23 @@ const UPCOMING_FEATURES = [
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, joinTeam } = useAuth();
   const { game, resumeGame } = useGame();
   const [recent, setRecent] = useState<StoredGameSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingGames, setLoadingGames] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   const loadGames = useCallback(async () => {
     if (!isSupabaseConfigured || !profile || profile.id.startsWith('demo-')) return;
-    setLoading(true);
+    setLoadingGames(true);
     try {
       setRecent(await listRecentGames(profile.id));
     } catch {
       // Silent — surface elsewhere later if it matters.
     } finally {
-      setLoading(false);
+      setLoadingGames(false);
     }
   }, [profile]);
 
@@ -42,10 +52,24 @@ export default function HomeScreen() {
   if (!profile) return null;
 
   const gameInProgress = game && game.status !== 'final';
+  const onATeam = !!profile.teamId;
 
   async function handleResume(id: string) {
     await resumeGame(id);
     router.push('/games/live');
+  }
+
+  async function handleJoin() {
+    setJoinError(null);
+    setJoining(true);
+    try {
+      await joinTeam(joinCode);
+      setJoinCode('');
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : 'Could not join team');
+    } finally {
+      setJoining(false);
+    }
   }
 
   return (
@@ -76,15 +100,57 @@ export default function HomeScreen() {
           )}
         </View>
 
+        {onATeam ? (
+          <Pressable
+            onPress={() => router.push('/team')}
+            style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+          >
+            <View style={styles.rowBetween}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardEyebrow}>YOUR TEAM</Text>
+                <Text style={styles.cardTitle}>{profile.teamName}</Text>
+                <Text style={styles.muted}>
+                  {profile.role === 'manager'
+                    ? 'Tap to view invite code and roster'
+                    : 'Tap to view roster'}
+                </Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </View>
+          </Pressable>
+        ) : (
+          <View style={[styles.card, { borderColor: colors.accent }]}>
+            <Text style={styles.cardEyebrow}>JOIN A TEAM</Text>
+            <Text style={styles.cardTitle}>Got an invite code?</Text>
+            <Text style={styles.muted}>
+              Paste the code your manager sent you to join their roster.
+            </Text>
+            <Input
+              placeholder="ABCD2345"
+              value={joinCode}
+              onChangeText={setJoinCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            {joinError ? <Text style={styles.error}>{joinError}</Text> : null}
+            <Button
+              label="Join team"
+              onPress={handleJoin}
+              loading={joining}
+              disabled={!joinCode.trim()}
+            />
+          </View>
+        )}
+
         {!isSupabaseConfigured ? <SupabaseSetupCard /> : null}
 
         {isSupabaseConfigured ? (
           <View style={styles.card}>
-            <View style={styles.cardHeader}>
+            <View style={styles.rowBetween}>
               <Text style={styles.cardTitle}>Recent games</Text>
-              {loading ? <ActivityIndicator color={colors.textMuted} size="small" /> : null}
+              {loadingGames ? <ActivityIndicator color={colors.textMuted} size="small" /> : null}
             </View>
-            {recent.length === 0 && !loading ? (
+            {recent.length === 0 && !loadingGames ? (
               <Text style={styles.empty}>No saved games yet — start one above.</Text>
             ) : (
               recent.map((g) => (
@@ -217,8 +283,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rowBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  cardEyebrow: { ...typography.caption, color: colors.accent, letterSpacing: 3 },
   cardTitle: { ...typography.h3, color: colors.text },
+  muted: { ...typography.caption, color: colors.textMuted },
+  chevron: { fontSize: 28, color: colors.textMuted, fontWeight: '300' },
+  error: { ...typography.caption, color: colors.danger },
   empty: { ...typography.caption, color: colors.textMuted, fontStyle: 'italic' },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   bullet: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
