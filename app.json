@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Dartball",
+    "slug": "dartball",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "dartball",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dartball.app"
+    },
+    "android": {
+      "package": "com.dartball.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0f172a"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
