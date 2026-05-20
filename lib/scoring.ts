@@ -15,7 +15,9 @@ export type PlayEvent =
   | 'walk'
   | 'sacrifice'
   | 'strikeout'
-  | 'out';
+  | 'out'
+  | 'error'
+  | 'double_play';
 
 export const PLAY_EVENTS: readonly PlayEvent[] = [
   'single',
@@ -26,6 +28,8 @@ export const PLAY_EVENTS: readonly PlayEvent[] = [
   'sacrifice',
   'strikeout',
   'out',
+  'error',
+  'double_play',
 ] as const;
 
 export const EVENT_LABELS: Record<PlayEvent, string> = {
@@ -37,6 +41,8 @@ export const EVENT_LABELS: Record<PlayEvent, string> = {
   sacrifice: 'SAC',
   strikeout: 'K',
   out: 'OUT',
+  error: 'E',
+  double_play: 'DP',
 };
 
 export const EVENT_FULL_LABELS: Record<PlayEvent, string> = {
@@ -48,6 +54,8 @@ export const EVENT_FULL_LABELS: Record<PlayEvent, string> = {
   sacrifice: 'Sacrifice',
   strikeout: 'Strikeout',
   out: 'Out',
+  error: 'Error',
+  double_play: 'Double play',
 };
 
 type Bases = {
@@ -151,6 +159,22 @@ export function homeTotal(state: GameState): number {
   return state.homeScoreByInning.reduce((a, b) => a + b, 0);
 }
 
+export function disabledEvents(state: GameState): PlayEvent[] {
+  if (state.status === 'final') return [...PLAY_EVENTS];
+  const disabled: PlayEvent[] = [];
+  const noRunners =
+    !state.bases.first && !state.bases.second && !state.bases.third;
+
+  // A sacrifice needs a runner to advance and at least one out left to spare
+  // (otherwise the batter's out is the third out and no run can score).
+  if (state.outs >= 2 || noRunners) disabled.push('sacrifice');
+
+  // A double play needs a force at first base and room for two outs.
+  if (state.outs >= 2 || !state.bases.first) disabled.push('double_play');
+
+  return disabled;
+}
+
 export function applyEvent(state: GameState, event: PlayEvent): GameState {
   if (state.status === 'final') return state;
 
@@ -212,6 +236,25 @@ export function applyEvent(state: GameState, event: PlayEvent): GameState {
     case 'strikeout':
     case 'out':
       outsAdded = 1;
+      break;
+    case 'error':
+      // Batter reaches first like a single. Runners advance one base.
+      // Counts as an at-bat but not a hit, and runs are unearned (no RBI).
+      if (prior.third) runnersScored.push(prior.third);
+      bases = { first: batterId, second: prior.first, third: prior.second };
+      break;
+    case 'double_play':
+      // Force-style DP: runner on 1B is out at 2B, batter is out at 1B.
+      // Runners on 2B/3B advance if forced; a forced runner on 3B scores.
+      outsAdded = 2;
+      if (prior.first) {
+        if (prior.second) {
+          if (prior.third) runnersScored.push(prior.third);
+          bases.third = prior.second;
+        }
+        bases.second = null;
+        bases.first = null;
+      }
       break;
   }
 

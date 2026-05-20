@@ -11,6 +11,7 @@ import {
   EVENT_FULL_LABELS,
   awayTotal,
   currentBatter,
+  disabledEvents,
   homeTotal,
   onDeckBatter,
 } from '@/lib/scoring';
@@ -103,7 +104,11 @@ export default function LiveGameScreen() {
               ) : null}
             </View>
 
-            <PlayButtons onPress={applyEvent} disabled={final} />
+            <PlayButtons
+              onPress={applyEvent}
+              disabled={final}
+              disabledEvents={disabledEvents(game)}
+            />
 
             <View style={styles.actions}>
               <Button

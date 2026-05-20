@@ -23,7 +23,18 @@ export type TeamBoxScore = {
 
 const HIT_EVENTS: PlayEvent[] = ['single', 'double', 'triple', 'hr'];
 // At-bats exclude walks and sacrifices (standard baseball scoring).
-const AB_EVENTS: PlayEvent[] = ['single', 'double', 'triple', 'hr', 'strikeout', 'out'];
+const AB_EVENTS: PlayEvent[] = [
+  'single',
+  'double',
+  'triple',
+  'hr',
+  'strikeout',
+  'out',
+  'error',
+  'double_play',
+];
+// Runs that score on an error or DP are not credited as RBI to the batter.
+const NO_RBI_EVENTS: PlayEvent[] = ['error', 'double_play'];
 
 export function computeTeamBoxScore(
   game: GameState,
@@ -85,7 +96,7 @@ function buildStats(playerId: string, history: AtBatRecord[]) {
       if (record.event === 'hr') hrs += 1;
       if (record.event === 'walk') bb += 1;
       if (record.event === 'strikeout') k += 1;
-      rbi += record.runsScored;
+      if (!NO_RBI_EVENTS.includes(record.event)) rbi += record.runsScored;
     }
   }
 
