@@ -169,8 +169,8 @@ export function disabledEvents(state: GameState): PlayEvent[] {
   // (otherwise the batter's out is the third out and no run can score).
   if (state.outs >= 2 || noRunners) disabled.push('sacrifice');
 
-  // A double play needs a force at first base and room for two outs.
-  if (state.outs >= 2 || !state.bases.first) disabled.push('double_play');
+  // A double play needs at least one runner on base and room for two outs.
+  if (state.outs >= 2 || noRunners) disabled.push('double_play');
 
   return disabled;
 }
@@ -244,15 +244,13 @@ export function applyEvent(state: GameState, event: PlayEvent): GameState {
       bases = { first: batterId, second: prior.first, third: prior.second };
       break;
     case 'double_play':
-      // Force-style DP: runner on 1B is out at 2B, batter is out at 1B.
-      // Runners on 2B/3B advance if forced; a forced runner on 3B scores.
+      // Batter out plus the lead runner (closest to home). Other runners hold.
       outsAdded = 2;
-      if (prior.first) {
-        if (prior.second) {
-          if (prior.third) runnersScored.push(prior.third);
-          bases.third = prior.second;
-        }
+      if (prior.third) {
+        bases.third = null;
+      } else if (prior.second) {
         bases.second = null;
+      } else if (prior.first) {
         bases.first = null;
       }
       break;
