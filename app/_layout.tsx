@@ -4,14 +4,17 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { GameProvider } from '@/lib/gameStore';
 import { colors } from '@/lib/theme';
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="light" />
-        <AuthGate />
+        <GameProvider>
+          <StatusBar style="light" />
+          <AuthGate />
+        </GameProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
