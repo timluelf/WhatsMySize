@@ -18,7 +18,7 @@ import { colors, radius, spacing, typography } from '@/lib/theme';
 
 export default function LiveGameScreen() {
   const router = useRouter();
-  const { game, applyEvent, undo, reset } = useGame();
+  const { game, applyEvent, undo, reset, syncing, syncError } = useGame();
 
   useEffect(() => {
     if (!game) router.replace('/games/new');
@@ -49,6 +49,13 @@ export default function LiveGameScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
+        {syncing || syncError ? (
+          <View style={[styles.syncBanner, syncError ? styles.syncError : null]}>
+            <Text style={styles.syncText}>
+              {syncError ? `Save failed: ${syncError}` : 'Saving…'}
+            </Text>
+          </View>
+        ) : null}
         <Scoreboard game={game} />
 
         {final ? (
@@ -191,4 +198,13 @@ const styles = StyleSheet.create({
   finalLabel: { ...typography.label, color: colors.primary, letterSpacing: 4 },
   finalWinner: { ...typography.h1, color: colors.text },
   finalScore: { ...typography.body, color: colors.textMuted },
+  syncBanner: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.sm,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    alignSelf: 'flex-start',
+  },
+  syncError: { backgroundColor: 'rgba(239,68,68,0.2)' },
+  syncText: { ...typography.caption, color: colors.textMuted },
 });

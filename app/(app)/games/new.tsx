@@ -43,9 +43,9 @@ export default function NewGameScreen() {
   const sameTeam = awayId === homeId;
   const emptyLineup = awayLineup.length === 0 || homeLineup.length === 0;
 
-  function start() {
+  async function start() {
     if (sameTeam || emptyLineup) return;
-    startGame({ away, home, awayLineup, homeLineup, totalInnings: 7 });
+    await startGame({ away, home, awayLineup, homeLineup, totalInnings: 7 });
     router.replace('/games/live');
   }
 
