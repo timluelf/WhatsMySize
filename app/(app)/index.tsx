@@ -198,6 +198,14 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
+        {onATeam && isSupabaseConfigured ? (
+          <Button
+            label="Leagues"
+            variant="secondary"
+            onPress={() => router.push('/leagues')}
+          />
+        ) : null}
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Coming up</Text>
           {UPCOMING_FEATURES.map((feature) => (

@@ -193,6 +193,11 @@ export default function TeamScreen() {
           label="Season stats"
           onPress={() => router.push(`/stats/${teamId}`)}
         />
+        <Button
+          label="Leagues"
+          variant="secondary"
+          onPress={() => router.push('/leagues')}
+        />
 
         {!isManager ? (
           <Button label="Leave team" variant="secondary" onPress={handleLeave} loading={busy} />
