@@ -390,6 +390,51 @@ export type UpcomingMatch = {
   isMyTeamA: boolean;
 };
 
+export type RegisteredTeam = { id: string; name: string };
+
+export async function listAllRegisteredTeams(): Promise<RegisteredTeam[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase!
+    .from('teams')
+    .select('id, name')
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as RegisteredTeam[];
+}
+
+export async function addTeamToTournament(
+  tournamentId: string,
+  teamId: string
+): Promise<void> {
+  if (!isSupabaseConfigured) throw new Error('Supabase not configured');
+  const { data: t, error } = await supabase!
+    .from('tournaments')
+    .select('size, status')
+    .eq('id', tournamentId)
+    .single();
+  if (error) throw error;
+  if (t.status !== 'open') throw new Error('Tournament has already started');
+  const { count } = await supabase!
+    .from('tournament_teams')
+    .select('*', { count: 'exact', head: true })
+    .eq('tournament_id', tournamentId);
+  if ((count ?? 0) >= (t.size ?? 0)) throw new Error('Tournament is full');
+
+  const { error: insertErr } = await supabase!
+    .from('tournament_teams')
+    .insert({ tournament_id: tournamentId, team_id: teamId });
+  if (insertErr && !insertErr.message.toLowerCase().includes('duplicate')) {
+    throw insertErr;
+  }
+}
+
+export async function removeTeamFromTournament(
+  tournamentId: string,
+  teamId: string
+): Promise<void> {
+  return leaveTournament(tournamentId, teamId);
+}
+
 export async function listUpcomingMatchesForTeam(
   teamId: string
 ): Promise<UpcomingMatch[]> {

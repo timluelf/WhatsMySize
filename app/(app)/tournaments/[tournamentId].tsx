@@ -17,12 +17,16 @@ import { useAuth } from '@/lib/auth';
 import { useGame } from '@/lib/gameStore';
 import { GameState, Team } from '@/lib/scoring';
 import {
+  RegisteredTeam,
   TournamentDetail,
   TournamentMatch,
   TournamentTeam,
+  addTeamToTournament,
   generateBracket,
   getTeamRoster,
   getTournament,
+  listAllRegisteredTeams,
+  removeTeamFromTournament,
   reportMatchResult,
 } from '@/lib/tournaments';
 import {
@@ -45,6 +49,7 @@ export default function TournamentDetailScreen() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editingMatch, setEditingMatch] = useState<TournamentMatch | null>(null);
+  const [allTeams, setAllTeams] = useState<RegisteredTeam[]>([]);
 
   const isCreator = profile && t && t.createdBy === profile.id;
   const isAdmin = profile?.isAdmin ?? false;
@@ -110,13 +115,18 @@ export default function TournamentDetailScreen() {
       const gameIds = detail.matches
         .map((m) => m.gameId)
         .filter((g): g is string => !!g);
-      setGames(await fetchTournamentGames(gameIds));
+      const [gs, teams] = await Promise.all([
+        fetchTournamentGames(gameIds),
+        detail.createdBy === profile?.id ? listAllRegisteredTeams() : Promise.resolve([]),
+      ]);
+      setGames(gs);
+      setAllTeams(teams);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load');
     } finally {
       setLoading(false);
     }
-  }, [tournamentId]);
+  }, [tournamentId, profile?.id]);
 
   useEffect(() => {
     refresh();
@@ -159,6 +169,34 @@ export default function TournamentDetailScreen() {
       setBusy(false);
     }
   }
+
+  async function handleAddTeam(teamId: string) {
+    if (!t) return;
+    setError(null);
+    try {
+      await addTeamToTournament(t.id, teamId);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not add team');
+    }
+  }
+
+  async function handleRemoveTeam(teamId: string) {
+    if (!t) return;
+    setError(null);
+    try {
+      await removeTeamFromTournament(t.id, teamId);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove team');
+    }
+  }
+
+  const availableTeams = useMemo(() => {
+    if (!t) return [];
+    const inTournament = new Set(t.teams.map((tt) => tt.id));
+    return allTeams.filter((team) => !inTournament.has(team.id));
+  }, [t, allTeams]);
 
   if (!profile) return null;
 
@@ -230,10 +268,48 @@ export default function TournamentDetailScreen() {
                       {team.seed !== null ? `#${team.seed}` : '·'}
                     </Text>
                     <Text style={styles.teamName}>{team.name}</Text>
+                    {isCreator && t.status === 'open' ? (
+                      <Pressable
+                        onPress={() => handleRemoveTeam(team.id)}
+                        style={({ pressed }) => [
+                          styles.smallBtn,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Text style={styles.smallBtnText}>Remove</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 ))
               )}
             </View>
+
+            {isCreator && t.status === 'open' && availableTeams.length > 0 ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Add registered teams</Text>
+                <Text style={styles.muted}>
+                  Skip the join code — pick any team in the system.{' '}
+                  {t.size - t.teams.length} slot
+                  {t.size - t.teams.length === 1 ? '' : 's'} left.
+                </Text>
+                {availableTeams.map((team) => (
+                  <View key={team.id} style={styles.teamRow}>
+                    <Text style={styles.teamSeed}>+</Text>
+                    <Text style={styles.teamName}>{team.name}</Text>
+                    <Pressable
+                      onPress={() => handleAddTeam(team.id)}
+                      style={({ pressed }) => [
+                        styles.smallBtnPrimary,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      disabled={t.teams.length >= t.size}
+                    >
+                      <Text style={styles.smallBtnPrimaryText}>Add</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             {t.matches.length > 0 ? (
               <View style={styles.card}>
@@ -606,6 +682,21 @@ const styles = StyleSheet.create({
   },
   teamSeed: { ...typography.caption, color: colors.accent, fontWeight: '700', width: 28 },
   teamName: { ...typography.body, color: colors.text, flex: 1 },
+  smallBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  smallBtnText: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
+  smallBtnPrimary: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary,
+  },
+  smallBtnPrimaryText: { ...typography.caption, color: colors.text, fontWeight: '700' },
   bracketWrap: { flexDirection: 'row', gap: spacing.md, paddingVertical: 4 },
   roundCol: { gap: spacing.md, minWidth: 160 },
   roundLabel: {

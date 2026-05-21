@@ -202,20 +202,39 @@ export default function HomeScreen() {
         {!isSupabaseConfigured ? <SupabaseSetupCard /> : null}
 
         {onATeam && isSupabaseConfigured ? (
-          <View style={styles.actionRow}>
-            <Button
-              label="Tournaments"
-              variant="secondary"
+          <>
+            <Pressable
               onPress={() => router.push('/tournaments')}
-              style={{ flex: 1 }}
-            />
-            <Button
-              label="Leagues"
-              variant="secondary"
+              style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+            >
+              <View style={styles.rowBetween}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardEyebrow}>TOURNAMENTS</Text>
+                  <Text style={styles.cardTitle}>Brackets & playoffs</Text>
+                  <Text style={styles.muted}>
+                    Schedule, results, tournament leaders
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
               onPress={() => router.push('/leagues')}
-              style={{ flex: 1 }}
-            />
-          </View>
+              style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+            >
+              <View style={styles.rowBetween}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardEyebrow}>LEAGUES</Text>
+                  <Text style={styles.cardTitle}>Standings & leaders</Text>
+                  <Text style={styles.muted}>
+                    W-L records and top players across the season
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </View>
+            </Pressable>
+          </>
         ) : null}
 
         {isSupabaseConfigured && upcoming.length > 0 ? (
@@ -379,7 +398,6 @@ const styles = StyleSheet.create({
   chevron: { fontSize: 28, color: colors.textMuted, fontWeight: '300' },
   error: { ...typography.caption, color: colors.danger },
   empty: { ...typography.caption, color: colors.textMuted, fontStyle: 'italic' },
-  actionRow: { flexDirection: 'row', gap: spacing.sm },
   gameRow: {
     flexDirection: 'row',
     alignItems: 'center',
