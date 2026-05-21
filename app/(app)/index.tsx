@@ -17,12 +17,6 @@ import { StoredGameSummary, listRecentGames } from '@/lib/games';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 
-const UPCOMING_FEATURES = [
-  'Schedule & results',
-  'League standings',
-  'Player & season stats',
-] as const;
-
 export default function HomeScreen() {
   const router = useRouter();
   const { profile, signOut, joinTeam, createTeam } = useAuth();
@@ -199,22 +193,21 @@ export default function HomeScreen() {
         ) : null}
 
         {onATeam && isSupabaseConfigured ? (
-          <Button
-            label="Leagues"
-            variant="secondary"
-            onPress={() => router.push('/leagues')}
-          />
+          <View style={styles.actionRow}>
+            <Button
+              label="Leagues"
+              variant="secondary"
+              onPress={() => router.push('/leagues')}
+              style={{ flex: 1 }}
+            />
+            <Button
+              label="Tournaments"
+              variant="secondary"
+              onPress={() => router.push('/tournaments')}
+              style={{ flex: 1 }}
+            />
+          </View>
         ) : null}
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Coming up</Text>
-          {UPCOMING_FEATURES.map((feature) => (
-            <View key={feature} style={styles.featureRow}>
-              <View style={styles.bullet} />
-              <Text style={styles.featureText}>{feature}</Text>
-            </View>
-          ))}
-        </View>
 
         <Button label="Sign out" variant="secondary" onPress={signOut} />
       </ScrollView>
@@ -340,9 +333,7 @@ const styles = StyleSheet.create({
   chevron: { fontSize: 28, color: colors.textMuted, fontWeight: '300' },
   error: { ...typography.caption, color: colors.danger },
   empty: { ...typography.caption, color: colors.textMuted, fontStyle: 'italic' },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  bullet: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
-  featureText: { ...typography.body, color: colors.text },
+  actionRow: { flexDirection: 'row', gap: spacing.sm },
   gameRow: {
     flexDirection: 'row',
     alignItems: 'center',
