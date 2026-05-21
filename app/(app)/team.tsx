@@ -189,6 +189,11 @@ export default function TeamScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
+        <Button
+          label="Season stats"
+          onPress={() => router.push(`/stats/${teamId}`)}
+        />
+
         {!isManager ? (
           <Button label="Leave team" variant="secondary" onPress={handleLeave} loading={busy} />
         ) : null}

@@ -33,6 +33,8 @@ type DbRow = {
 function projection(state: GameState) {
   return {
     state,
+    away_team_id: state.away.id,
+    home_team_id: state.home.id,
     away_team_name: state.away.name,
     home_team_name: state.home.name,
     away_team_abbr: state.away.abbreviation,
@@ -78,6 +80,17 @@ export async function listRecentGames(userId: string): Promise<StoredGameSummary
     .limit(10);
   if (error) throw error;
   return (data ?? []).map(rowToSummary);
+}
+
+export async function listGamesForTeam(teamId: string): Promise<GameState[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase!
+    .from('games')
+    .select('state')
+    .or(`away_team_id.eq.${teamId},home_team_id.eq.${teamId}`)
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => row.state as GameState);
 }
 
 export async function loadGameRecord(id: string): Promise<GameState | null> {

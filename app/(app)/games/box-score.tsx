@@ -38,10 +38,22 @@ export default function BoxScoreScreen() {
         <Scoreboard game={game} />
 
         <BoxScoreTable box={away} />
+        <Button
+          label={`${game.away.abbreviation} season stats`}
+          variant="secondary"
+          onPress={() => router.push(`/stats/${game.away.id}`)}
+        />
+
         <BoxScoreTable box={home} />
+        <Button
+          label={`${game.home.abbreviation} season stats`}
+          variant="secondary"
+          onPress={() => router.push(`/stats/${game.home.id}`)}
+        />
 
         <Button
           label={final ? 'Back to home' : 'Back to game'}
+          variant="ghost"
           onPress={() => router.back()}
         />
       </ScrollView>
