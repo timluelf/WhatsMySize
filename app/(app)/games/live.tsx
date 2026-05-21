@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Diamond } from '@/components/Diamond';
@@ -47,241 +47,150 @@ export default function LiveGameScreen() {
           : 'Tie'
       : null;
 
-  function handleQuit() {
-    reset();
-    router.replace('/');
-  }
-
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={handleQuit}
-            style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.7 }]}
-            hitSlop={12}
-          >
-            <Text style={styles.closeText}>✕</Text>
-          </Pressable>
-          <View style={styles.syncSlot}>
-            {syncing ? <Text style={styles.syncText}>Saving…</Text> : null}
-            {syncError ? <Text style={styles.syncErrorText}>{syncError}</Text> : null}
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {syncing || syncError ? (
+          <View style={[styles.syncBanner, syncError ? styles.syncError : null]}>
+            <Text style={styles.syncText}>
+              {syncError ? `Save failed: ${syncError}` : 'Saving…'}
+            </Text>
           </View>
-        </View>
-
-        <Pressable
-          onPress={() => router.push('/games/box-score')}
-          style={({ pressed }) => [styles.scoreboardWrap, pressed && { opacity: 0.85 }]}
-        >
-          <Scoreboard game={game} />
-          <Text style={styles.tapHint}>Tap for box score ›</Text>
-        </Pressable>
+        ) : null}
+        <Scoreboard game={game} />
 
         {final ? (
-          <View style={styles.finalArea}>
-            <View style={styles.finalCard}>
-              <Text style={styles.finalLabel}>FINAL</Text>
-              <Text style={styles.finalWinner}>{winner}</Text>
-              <Text style={styles.finalScore}>
-                {game.away.abbreviation} {awayR} — {homeR} {game.home.abbreviation}
-              </Text>
-            </View>
-            <Button
-              label="View box score"
-              onPress={() => router.push('/games/box-score')}
-            />
-            <Button label="Back to home" variant="ghost" onPress={handleQuit} />
+          <View style={styles.finalCard}>
+            <Text style={styles.finalLabel}>FINAL</Text>
+            <Text style={styles.finalWinner}>{winner}</Text>
+            <Text style={styles.finalScore}>
+              {game.away.abbreviation} {awayR} — {homeR} {game.home.abbreviation}
+            </Text>
           </View>
         ) : (
           <>
             <View style={styles.statusRow}>
-              <View style={styles.statusBlock}>
-                <View style={styles.statusItem}>
-                  <Text style={styles.statusBig}>
-                    {game.half === 'top' ? '▲' : '▼'} {game.inning}
-                  </Text>
-                  <Text style={styles.statusLabel}>
-                    {battingTeam.abbreviation}
-                  </Text>
-                </View>
-                <View style={styles.statusItem}>
-                  <Text style={styles.statusBig}>{game.outs}</Text>
-                  <Text style={styles.statusLabel}>
-                    out{game.outs === 1 ? '' : 's'}
-                  </Text>
-                </View>
-                <View style={styles.statusItem}>
-                  <Text style={styles.statusBig}>
-                    {awayR}–{homeR}
-                  </Text>
-                  <Text style={styles.statusLabel}>score</Text>
-                </View>
-              </View>
+              <StatusPill
+                label={`${game.half === 'top' ? '▲' : '▼'} ${game.inning}`}
+                hint={`${battingTeam.abbreviation} batting`}
+              />
+              <StatusPill label={`${game.outs}`} hint={`Out${game.outs === 1 ? '' : 's'}`} />
+              <StatusPill
+                label={`${awayR}-${homeR}`}
+                hint="Score"
+              />
+            </View>
+
+            <View style={styles.diamondCard}>
               <Diamond
                 first={!!game.bases.first}
                 second={!!game.bases.second}
                 third={!!game.bases.third}
-                size={92}
+                size={200}
               />
             </View>
 
-            <View style={styles.batterRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.batterEyebrow}>AT BAT</Text>
-                <Text style={styles.batterName} numberOfLines={1}>
-                  {batter ? batter.name : '—'}
-                  {batter?.number !== undefined ? (
-                    <Text style={styles.batterNum}> #{batter.number}</Text>
-                  ) : null}
-                </Text>
-              </View>
-              <View style={styles.onDeckBlock}>
-                <Text style={styles.onDeckLabel}>ON DECK</Text>
-                <Text style={styles.onDeckName} numberOfLines={1}>
-                  {onDeck?.name ?? '—'}
-                </Text>
-              </View>
+            <View style={styles.batterCard}>
+              <Text style={styles.batterEyebrow}>AT BAT</Text>
+              <Text style={styles.batterName}>
+                {batter ? `${batter.name}` : '—'}
+                {batter?.number ? <Text style={styles.batterNum}> #{batter.number}</Text> : null}
+              </Text>
+              <Text style={styles.onDeck}>
+                On deck: {onDeck?.name ?? '—'}
+              </Text>
+              {lastPlayLabel ? (
+                <Text style={styles.lastPlay}>Last play: {lastPlayLabel}</Text>
+              ) : null}
             </View>
 
-            {lastPlayLabel ? (
-              <Text style={styles.lastPlay} numberOfLines={1}>
-                Last: {lastPlayLabel}
-              </Text>
-            ) : null}
+            <PlayButtons
+              onPress={applyEvent}
+              disabled={final}
+              disabledEvents={disabledEvents(game)}
+            />
 
             <View style={styles.actions}>
-              <PlayButtons
-                onPress={applyEvent}
-                disabledEvents={disabledEvents(game)}
-              />
-              <Pressable
+              <Button
+                label="Undo"
+                variant="secondary"
                 onPress={undo}
-                disabled={game.past.length === 0}
-                style={({ pressed }) => [
-                  styles.undoBtn,
-                  pressed && { opacity: 0.7 },
-                  game.past.length === 0 && { opacity: 0.4 },
-                ]}
-                hitSlop={8}
-              >
-                <Text style={styles.undoText}>↶ Undo last play</Text>
-              </Pressable>
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="Box score"
+                variant="secondary"
+                onPress={() => router.push('/games/box-score')}
+                style={{ flex: 1 }}
+              />
             </View>
           </>
         )}
-      </View>
+
+        {final ? (
+          <Button label="View box score" onPress={() => router.push('/games/box-score')} />
+        ) : null}
+
+        <Button
+          label={final ? 'Back to home' : 'Quit game'}
+          variant="ghost"
+          onPress={() => {
+            reset();
+            router.replace('/');
+          }}
+        />
+      </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function StatusPill({ label, hint }: { label: string; hint: string }) {
+  return (
+    <View style={styles.pill}>
+      <Text style={styles.pillLabel}>{label}</Text>
+      <Text style={styles.pillHint}>{hint}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  container: {
+  scroll: { padding: spacing.lg, gap: spacing.lg },
+  statusRow: { flexDirection: 'row', gap: spacing.sm },
+  pill: {
     flex: 1,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    maxWidth: 540,
-    width: '100%',
-    alignSelf: 'center',
-    gap: spacing.sm,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 36,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  closeText: { color: colors.text, fontSize: 16, lineHeight: 18 },
-  syncSlot: { flex: 1, alignItems: 'flex-end', paddingHorizontal: 4 },
-  syncText: { ...typography.caption, color: colors.textMuted },
-  syncErrorText: { ...typography.caption, color: colors.danger },
-  scoreboardWrap: { gap: 4 },
-  tapHint: {
-    ...typography.caption,
-    color: colors.textMuted,
-    textAlign: 'right',
-    fontStyle: 'italic',
-    fontSize: 11,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     paddingVertical: 10,
-    paddingHorizontal: spacing.md,
-    gap: spacing.md,
-  },
-  statusBlock: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
+    gap: 2,
   },
-  statusItem: { alignItems: 'center', minWidth: 56 },
-  statusBig: { ...typography.h2, color: colors.text, fontSize: 22 },
-  statusLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  batterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    gap: spacing.md,
-  },
-  batterEyebrow: {
-    ...typography.caption,
-    color: colors.accent,
-    letterSpacing: 2,
-    fontSize: 10,
-  },
-  batterName: { ...typography.h3, color: colors.text, fontSize: 18 },
-  batterNum: { color: colors.textMuted, fontWeight: '400' },
-  onDeckBlock: { alignItems: 'flex-end' },
-  onDeckLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-    letterSpacing: 2,
-  },
-  onDeckName: { ...typography.body, color: colors.text, fontSize: 14, maxWidth: 140 },
-  lastPlay: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 11,
-    paddingHorizontal: 4,
-  },
-  actions: { marginTop: 'auto', gap: 6 },
-  undoBtn: {
-    alignSelf: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
+  pillLabel: { ...typography.h2, color: colors.text, fontSize: 22 },
+  pillHint: { ...typography.caption, color: colors.textMuted },
+  diamondCard: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
+  batterCard: {
     backgroundColor: colors.bgElevated,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: 2,
   },
-  undoText: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
-  finalArea: {
-    flex: 1,
-    gap: spacing.md,
-    justifyContent: 'center',
-  },
+  batterEyebrow: { ...typography.caption, color: colors.accent, letterSpacing: 2 },
+  batterName: { ...typography.h2, color: colors.text },
+  batterNum: { color: colors.textMuted, fontWeight: '400' },
+  onDeck: { ...typography.body, color: colors.textMuted },
+  lastPlay: { ...typography.caption, color: colors.textMuted, marginTop: 4 },
+  actions: { flexDirection: 'row', gap: spacing.sm },
   finalCard: {
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
@@ -294,4 +203,13 @@ const styles = StyleSheet.create({
   finalLabel: { ...typography.label, color: colors.primary, letterSpacing: 4 },
   finalWinner: { ...typography.h1, color: colors.text },
   finalScore: { ...typography.body, color: colors.textMuted },
+  syncBanner: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.sm,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    alignSelf: 'flex-start',
+  },
+  syncError: { backgroundColor: 'rgba(239,68,68,0.2)' },
+  syncText: { ...typography.caption, color: colors.textMuted },
 });
