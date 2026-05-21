@@ -29,7 +29,6 @@ export default function LiveGameScreen() {
 
   const batter = currentBatter(game);
   const onDeck = onDeckBatter(game);
-  const battingTeam = game.half === 'top' ? game.away : game.home;
   const lastPlay = game.history[game.history.length - 1];
   const lastPlayLabel = lastPlay
     ? `${EVENT_FULL_LABELS[lastPlay.event]}${lastPlay.runsScored ? ` · ${lastPlay.runsScored} R` : ''}`
@@ -94,22 +93,24 @@ export default function LiveGameScreen() {
           </>
         ) : (
           <>
-            <View style={styles.statusRow}>
-              <StatusPill
-                label={`${game.half === 'top' ? '▲' : '▼'} ${game.inning}`}
-                hint={`${battingTeam.abbreviation} batting`}
-              />
-              <StatusPill label={`${game.outs}`} hint={`Out${game.outs === 1 ? '' : 's'}`} />
-              <StatusPill label={`${awayR}-${homeR}`} hint="Score" />
-            </View>
-
             <View style={styles.diamondCard}>
               <Diamond
                 first={!!game.bases.first}
                 second={!!game.bases.second}
                 third={!!game.bases.third}
-                size={160}
+                size={200}
               />
+              <View style={styles.outsBox}>
+                <Text style={styles.outsLabel}>Outs</Text>
+                <View style={styles.outsDots}>
+                  {[1, 2, 3].map((n) => (
+                    <View
+                      key={n}
+                      style={[styles.outsDot, game.outs >= n && styles.outsDotFilled]}
+                    />
+                  ))}
+                </View>
+              </View>
             </View>
 
             <View style={styles.batterCard}>
@@ -151,15 +152,6 @@ export default function LiveGameScreen() {
   );
 }
 
-function StatusPill({ label, hint }: { label: string; hint: string }) {
-  return (
-    <View style={styles.pill}>
-      <Text style={styles.pillLabel}>{label}</Text>
-      <Text style={styles.pillHint}>{hint}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   scroll: {
@@ -197,19 +189,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontSize: 11,
   },
-  statusRow: { flexDirection: 'row', gap: spacing.sm },
-  pill: {
-    flex: 1,
-    backgroundColor: colors.bgElevated,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 8,
-    alignItems: 'center',
-    gap: 2,
-  },
-  pillLabel: { ...typography.h2, color: colors.text, fontSize: 20 },
-  pillHint: { ...typography.caption, color: colors.textMuted, fontSize: 11 },
   diamondCard: {
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
@@ -217,6 +196,34 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    position: 'relative',
+  },
+  outsBox: {
+    position: 'absolute',
+    bottom: 10,
+    left: 14,
+    gap: 4,
+  },
+  outsLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    fontWeight: '700',
+  },
+  outsDots: {
+    flexDirection: 'row',
+    gap: 5,
+  },
+  outsDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.border,
+  },
+  outsDotFilled: {
+    backgroundColor: colors.primary,
   },
   batterCard: {
     backgroundColor: colors.bgElevated,
