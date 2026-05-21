@@ -179,7 +179,7 @@ export default function LeaguesScreen() {
           </View>
         ) : null}
 
-        {isManager ? (
+        {isManager && profile.isAdmin ? (
           <View style={styles.card}>
             <Text style={styles.cardEyebrow}>CREATE A LEAGUE</Text>
             <Text style={styles.cardTitle}>Start a new league</Text>

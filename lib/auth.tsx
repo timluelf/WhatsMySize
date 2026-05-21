@@ -19,6 +19,7 @@ export type Profile = {
   role: AccountRole;
   teamId: string | null;
   teamName: string | null;
+  isAdmin: boolean;
   needsProfileSetup: boolean;
 };
 
@@ -106,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: 'individual',
             teamId: null,
             teamName: null,
+            isAdmin: false,
             needsProfileSetup: false,
           };
           await AsyncStorage.setItem(DEMO_PROFILE_KEY, JSON.stringify(demo));
@@ -125,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role,
             teamId: role === 'manager' ? `team-${Date.now()}` : null,
             teamName: role === 'manager' ? teamName ?? null : null,
+            isAdmin: false,
             needsProfileSetup: false,
           };
           await AsyncStorage.setItem(DEMO_PROFILE_KEY, JSON.stringify(demo));
@@ -178,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role,
             teamId,
             teamName: teamNameOut,
+            isAdmin: false,
             needsProfileSetup: false,
           });
         } finally {
@@ -323,7 +327,7 @@ export function useAuth() {
 async function loadProfile(userId: string, email: string): Promise<Profile | null> {
   const { data, error } = await supabase!
     .from('profiles')
-    .select('id, email, display_name, role, team_id, teams(name)')
+    .select('id, email, display_name, role, team_id, is_admin, teams(name)')
     .eq('id', userId)
     .maybeSingle();
 
@@ -335,6 +339,7 @@ async function loadProfile(userId: string, email: string): Promise<Profile | nul
       role: 'individual',
       teamId: null,
       teamName: null,
+      isAdmin: false,
       needsProfileSetup: true,
     };
   }
@@ -346,6 +351,7 @@ async function loadProfile(userId: string, email: string): Promise<Profile | nul
     displayName: data.display_name,
     role: data.role as AccountRole,
     teamId: data.team_id,
+    isAdmin: data.is_admin === true,
     teamName: team?.name ?? null,
     needsProfileSetup: false,
   };
