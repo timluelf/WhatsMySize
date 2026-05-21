@@ -1,3 +1,4 @@
+import { Player } from './scoring';
 import { isSupabaseConfigured, supabase } from './supabase';
 
 export type TournamentStatus = 'open' | 'in_progress' | 'final';
@@ -363,6 +364,82 @@ export async function reportMatchResult(params: {
       .update({ status: 'final' })
       .eq('id', match.tournament_id);
   }
+}
+
+export async function getTeamRoster(teamId: string): Promise<Player[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase!
+    .from('profiles')
+    .select('id, display_name')
+    .eq('team_id', teamId)
+    .order('display_name', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: row.display_name as string,
+  }));
+}
+
+export type UpcomingMatch = {
+  matchId: string;
+  tournamentId: string;
+  tournamentName: string;
+  round: number;
+  teamAName: string;
+  teamBName: string;
+  isMyTeamA: boolean;
+};
+
+export async function listUpcomingMatchesForTeam(
+  teamId: string
+): Promise<UpcomingMatch[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase!
+    .from('tournament_matches')
+    .select(
+      'id, round, team_a_id, team_b_id, tournament_id, tournaments(id, name)'
+    )
+    .or(`team_a_id.eq.${teamId},team_b_id.eq.${teamId}`)
+    .is('winner_team_id', null);
+  if (error) throw error;
+
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    round: number;
+    team_a_id: string | null;
+    team_b_id: string | null;
+    tournament_id: string;
+    tournaments: { id: string; name: string } | { id: string; name: string }[] | null;
+  }[];
+
+  const teamIds = new Set<string>();
+  for (const r of rows) {
+    if (r.team_a_id) teamIds.add(r.team_a_id);
+    if (r.team_b_id) teamIds.add(r.team_b_id);
+  }
+  if (teamIds.size === 0) return [];
+
+  const { data: teams } = await supabase!
+    .from('teams')
+    .select('id, name')
+    .in('id', Array.from(teamIds));
+  const nameById = new Map(((teams ?? []) as { id: string; name: string }[]).map((t) => [t.id, t.name]));
+
+  return rows
+    .filter((r) => r.team_a_id && r.team_b_id)
+    .map((r) => {
+      const t = Array.isArray(r.tournaments) ? r.tournaments[0] : r.tournaments;
+      return {
+        matchId: r.id,
+        tournamentId: r.tournament_id,
+        tournamentName: t?.name ?? '',
+        round: r.round,
+        teamAName: nameById.get(r.team_a_id!) ?? '?',
+        teamBName: nameById.get(r.team_b_id!) ?? '?',
+        isMyTeamA: r.team_a_id === teamId,
+      };
+    })
+    .sort((a, b) => a.round - b.round);
 }
 
 export async function getTeamCount(tournamentId: string): Promise<number> {

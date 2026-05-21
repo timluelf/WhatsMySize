@@ -14,12 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { useAuth } from '@/lib/auth';
-import { GameState } from '@/lib/scoring';
+import { useGame } from '@/lib/gameStore';
+import { GameState, Team } from '@/lib/scoring';
 import {
   TournamentDetail,
   TournamentMatch,
   TournamentTeam,
   generateBracket,
+  getTeamRoster,
   getTournament,
   reportMatchResult,
 } from '@/lib/tournaments';
@@ -34,6 +36,7 @@ import { colors, radius, spacing, typography } from '@/lib/theme';
 export default function TournamentDetailScreen() {
   const router = useRouter();
   const { profile } = useAuth();
+  const { startGame } = useGame();
   const { tournamentId } = useLocalSearchParams<{ tournamentId: string }>();
   const [t, setT] = useState<TournamentDetail | null>(null);
   const [games, setGames] = useState<GameState[]>([]);
@@ -44,6 +47,51 @@ export default function TournamentDetailScreen() {
   const [editingMatch, setEditingMatch] = useState<TournamentMatch | null>(null);
 
   const isCreator = profile && t && t.createdBy === profile.id;
+  const isAdmin = profile?.isAdmin ?? false;
+
+  async function playMatchLive(match: TournamentMatch) {
+    if (!match.teamAId || !match.teamBId) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const teamAInfo = teamById.get(match.teamAId);
+      const teamBInfo = teamById.get(match.teamBId);
+      const [rosterA, rosterB] = await Promise.all([
+        getTeamRoster(match.teamAId),
+        getTeamRoster(match.teamBId),
+      ]);
+      if (rosterA.length === 0 || rosterB.length === 0) {
+        setError(
+          `${rosterA.length === 0 ? teamAInfo?.name : teamBInfo?.name} has no players yet — they need to register first.`
+        );
+        return;
+      }
+      const teamA: Team = {
+        id: match.teamAId,
+        name: teamAInfo?.name ?? 'Team A',
+        abbreviation: makeAbbr(teamAInfo?.name ?? 'A'),
+        players: rosterA,
+      };
+      const teamB: Team = {
+        id: match.teamBId,
+        name: teamBInfo?.name ?? 'Team B',
+        abbreviation: makeAbbr(teamBInfo?.name ?? 'B'),
+        players: rosterB,
+      };
+      await startGame({
+        away: teamA,
+        home: teamB,
+        tournamentMatchId: match.id,
+        totalInnings: 7,
+      });
+      setEditingMatch(null);
+      router.push('/games/live');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start match');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const refresh = useCallback(async () => {
     if (!tournamentId || !isSupabaseConfigured) {
@@ -222,6 +270,9 @@ export default function TournamentDetailScreen() {
         <ReportResultModal
           match={editingMatch}
           teamById={teamById}
+          canPlayLive={isAdmin}
+          onPlayLive={() => playMatchLive(editingMatch)}
+          playLiveBusy={busy}
           onClose={() => setEditingMatch(null)}
           onSubmitted={async () => {
             setEditingMatch(null);
@@ -396,11 +447,17 @@ function Leaders({ leaders }: { leaders: TournamentLeaders }) {
 function ReportResultModal({
   match,
   teamById,
+  canPlayLive,
+  onPlayLive,
+  playLiveBusy,
   onClose,
   onSubmitted,
 }: {
   match: TournamentMatch;
   teamById: Map<string, TournamentTeam>;
+  canPlayLive: boolean;
+  onPlayLive: () => void;
+  playLiveBusy: boolean;
   onClose: () => void;
   onSubmitted: () => void;
 }) {
@@ -456,12 +513,36 @@ function ReportResultModal({
             keyboardType="number-pad"
           />
           {err ? <Text style={styles.error}>{err}</Text> : null}
-          <Button label="Save result" onPress={submit} loading={submitting} />
+          {canPlayLive ? (
+            <Button
+              label="Play live"
+              onPress={onPlayLive}
+              loading={playLiveBusy}
+            />
+          ) : null}
+          <Button
+            label="Save result"
+            onPress={submit}
+            loading={submitting}
+            variant={canPlayLive ? 'secondary' : 'primary'}
+          />
           <Button label="Cancel" variant="ghost" onPress={onClose} />
         </View>
       </View>
     </Modal>
   );
+}
+
+function makeAbbr(name: string): string {
+  const clean = name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+  if (!clean) return 'TBD';
+  const parts = clean.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
+  return parts
+    .slice(0, 3)
+    .map((p) => p[0])
+    .join('')
+    .toUpperCase();
 }
 
 function labelForRound(round: number, totalRounds: number): string {

@@ -15,6 +15,10 @@ import { useAuth } from '@/lib/auth';
 import { useGame } from '@/lib/gameStore';
 import { StoredGameSummary, listRecentGames } from '@/lib/games';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import {
+  UpcomingMatch,
+  listUpcomingMatchesForTeam,
+} from '@/lib/tournaments';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 
 export default function HomeScreen() {
@@ -22,6 +26,7 @@ export default function HomeScreen() {
   const { profile, signOut, joinTeam, createTeam } = useAuth();
   const { game, resumeGame } = useGame();
   const [recent, setRecent] = useState<StoredGameSummary[]>([]);
+  const [upcoming, setUpcoming] = useState<UpcomingMatch[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [joining, setJoining] = useState(false);
@@ -30,21 +35,29 @@ export default function HomeScreen() {
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const loadGames = useCallback(async () => {
+  const isAdmin = profile?.isAdmin ?? false;
+  const teamId = profile?.teamId ?? null;
+
+  const loadData = useCallback(async () => {
     if (!isSupabaseConfigured || !profile || profile.id.startsWith('demo-')) return;
     setLoadingGames(true);
     try {
-      setRecent(await listRecentGames(profile.id));
+      const [games, ups] = await Promise.all([
+        listRecentGames(profile.id),
+        teamId ? listUpcomingMatchesForTeam(teamId) : Promise.resolve([]),
+      ]);
+      setRecent(games);
+      setUpcoming(ups);
     } catch {
       // Silent — surface elsewhere later if it matters.
     } finally {
       setLoadingGames(false);
     }
-  }, [profile]);
+  }, [profile, teamId]);
 
   useEffect(() => {
-    loadGames();
-  }, [loadGames]);
+    loadData();
+  }, [loadData]);
 
   if (!profile) return null;
 
@@ -90,25 +103,37 @@ export default function HomeScreen() {
           <Text style={styles.role}>
             {profile.role === 'manager' ? 'Team manager' : 'Player'}
             {profile.teamName ? ` · ${profile.teamName}` : ' · No team yet'}
+            {isAdmin ? ' · Admin' : ''}
           </Text>
         </View>
 
-        <View style={styles.heroCard}>
-          <Text style={styles.heroEyebrow}>LIVE SCORING</Text>
-          <Text style={styles.heroTitle}>
-            {gameInProgress ? 'Game in progress' : 'Score a game'}
-          </Text>
-          <Text style={styles.heroSub}>
-            {gameInProgress
-              ? `${game.away.abbreviation} @ ${game.home.abbreviation} — inning ${game.inning}`
-              : 'Pick two teams, tap each at-bat, the app keeps the book.'}
-          </Text>
-          {gameInProgress ? (
+        {isAdmin ? (
+          <View style={styles.heroCard}>
+            <Text style={styles.heroEyebrow}>LIVE SCORING</Text>
+            <Text style={styles.heroTitle}>
+              {gameInProgress ? 'Game in progress' : 'Score a game'}
+            </Text>
+            <Text style={styles.heroSub}>
+              {gameInProgress
+                ? `${game.away.abbreviation} @ ${game.home.abbreviation} — inning ${game.inning}`
+                : 'Open a tournament match or seed-team practice game.'}
+            </Text>
+            {gameInProgress ? (
+              <Button label="Resume game" onPress={() => router.push('/games/live')} />
+            ) : (
+              <Button label="Start a game" onPress={() => router.push('/games/new')} />
+            )}
+          </View>
+        ) : gameInProgress ? (
+          <View style={styles.heroCard}>
+            <Text style={styles.heroEyebrow}>LIVE SCORING</Text>
+            <Text style={styles.heroTitle}>Game in progress</Text>
+            <Text style={styles.heroSub}>
+              {`${game.away.abbreviation} @ ${game.home.abbreviation} — inning ${game.inning}`}
+            </Text>
             <Button label="Resume game" onPress={() => router.push('/games/live')} />
-          ) : (
-            <Button label="Start a game" onPress={() => router.push('/games/new')} />
-          )}
-        </View>
+          </View>
+        ) : null}
 
         {onATeam ? (
           <Pressable
@@ -176,6 +201,46 @@ export default function HomeScreen() {
 
         {!isSupabaseConfigured ? <SupabaseSetupCard /> : null}
 
+        {onATeam && isSupabaseConfigured ? (
+          <View style={styles.actionRow}>
+            <Button
+              label="Tournaments"
+              variant="secondary"
+              onPress={() => router.push('/tournaments')}
+              style={{ flex: 1 }}
+            />
+            <Button
+              label="Leagues"
+              variant="secondary"
+              onPress={() => router.push('/leagues')}
+              style={{ flex: 1 }}
+            />
+          </View>
+        ) : null}
+
+        {isSupabaseConfigured && upcoming.length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Upcoming schedule</Text>
+            {upcoming.map((u) => (
+              <Pressable
+                key={u.matchId}
+                onPress={() => router.push(`/tournaments/${u.tournamentId}`)}
+                style={({ pressed }) => [styles.gameRow, pressed && { opacity: 0.85 }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.gameTeams}>
+                    {u.teamAName} <Text style={styles.gameDash}>vs</Text> {u.teamBName}
+                  </Text>
+                  <Text style={styles.gameMeta}>
+                    {u.tournamentName} · Round {u.round}
+                  </Text>
+                </View>
+                <Text style={styles.gameAction}>View</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
         {isSupabaseConfigured ? (
           <View style={styles.card}>
             <View style={styles.rowBetween}>
@@ -183,29 +248,12 @@ export default function HomeScreen() {
               {loadingGames ? <ActivityIndicator color={colors.textMuted} size="small" /> : null}
             </View>
             {recent.length === 0 && !loadingGames ? (
-              <Text style={styles.empty}>No saved games yet — start one above.</Text>
+              <Text style={styles.empty}>No saved games yet.</Text>
             ) : (
               recent.map((g) => (
                 <GameRow key={g.id} game={g} onResume={() => handleResume(g.id)} />
               ))
             )}
-          </View>
-        ) : null}
-
-        {onATeam && isSupabaseConfigured ? (
-          <View style={styles.actionRow}>
-            <Button
-              label="Leagues"
-              variant="secondary"
-              onPress={() => router.push('/leagues')}
-              style={{ flex: 1 }}
-            />
-            <Button
-              label="Tournaments"
-              variant="secondary"
-              onPress={() => router.push('/tournaments')}
-              style={{ flex: 1 }}
-            />
           </View>
         ) : null}
 
@@ -274,9 +322,7 @@ function SupabaseSetupCard() {
           <Text style={styles.code}>EXPO_PUBLIC_SUPABASE_ANON_KEY=…</Text>
         </SetupStep>
         <SetupStep n={4}>
-          In Supabase SQL editor, paste{' '}
-          <Text style={styles.code}>supabase/migrations/0001_init.sql</Text> and{' '}
-          <Text style={styles.code}>0002_games.sql</Text>
+          Apply each SQL file in <Text style={styles.code}>supabase/migrations/</Text>
         </SetupStep>
         <SetupStep n={5}>
           Stop and re-run <Text style={styles.code}>npm run web</Text>

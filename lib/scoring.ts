@@ -94,6 +94,7 @@ export type GameState = {
   past: GameState[];
   status: 'in_progress' | 'final';
   totalInnings: number;
+  tournamentMatchId: string | null;
 };
 
 export type CreateGameInput = {
@@ -102,6 +103,7 @@ export type CreateGameInput = {
   awayLineup?: string[];
   homeLineup?: string[];
   totalInnings?: number;
+  tournamentMatchId?: string | null;
 };
 
 export function createGame({
@@ -110,6 +112,7 @@ export function createGame({
   awayLineup,
   homeLineup,
   totalInnings = 7,
+  tournamentMatchId = null,
 }: CreateGameInput): GameState {
   return {
     away,
@@ -130,6 +133,7 @@ export function createGame({
     past: [],
     status: 'in_progress',
     totalInnings,
+    tournamentMatchId,
   };
 }
 
