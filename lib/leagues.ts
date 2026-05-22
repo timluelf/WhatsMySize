@@ -85,6 +85,19 @@ export async function updateLeagueFee(
   if (error) throw error;
 }
 
+export async function findLeagueByCode(code: string): Promise<League | null> {
+  if (!isSupabaseConfigured) return null;
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+  const { data, error } = await supabase!
+    .from('leagues')
+    .select('id, name, description, join_code, created_by, registration_fee_cents')
+    .eq('join_code', trimmed)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToLeague(data) : null;
+}
+
 export async function joinLeagueByCode(code: string, teamId: string): Promise<League> {
   if (!isSupabaseConfigured) throw new Error('Supabase not configured');
   const trimmed = code.trim();

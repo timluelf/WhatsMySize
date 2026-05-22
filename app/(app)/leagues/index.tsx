@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,10 +16,12 @@ import { useAuth } from '@/lib/auth';
 import {
   League,
   createLeague,
+  findLeagueByCode,
   joinLeagueByCode,
   listLeaguesForTeam,
 } from '@/lib/leagues';
 import { dollarsToCents, formatFee } from '@/lib/money';
+import { startCheckout } from '@/lib/payments';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 
@@ -90,18 +93,33 @@ export default function LeaguesScreen() {
     setError(null);
     setBusy(true);
     try {
-      await joinLeagueByCode(code, teamId);
-      setCode('');
-      await refresh();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not join league';
-      // RLS will reject the insert if the league has a fee and there's no
-      // succeeded payment yet. Surface a clearer message.
-      if (msg.toLowerCase().includes('row-level security')) {
-        setError('This league requires a registration fee. Payment isn\'t wired yet — once Stripe is connected, you can pay and join.');
-      } else {
-        setError(msg);
+      const league = await findLeagueByCode(code);
+      if (!league) {
+        setError('No league found with that code');
+        return;
       }
+      if (league.registrationFeeCents === 0) {
+        await joinLeagueByCode(code, teamId);
+        setCode('');
+        await refresh();
+      } else {
+        const returnUrl =
+          Platform.OS === 'web' && typeof window !== 'undefined'
+            ? `${window.location.origin}/leagues/${league.id}`
+            : `dartball://leagues/${league.id}`;
+        const url = await startCheckout({
+          teamId,
+          target: { kind: 'league', leagueId: league.id },
+          returnUrl,
+        });
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          window.location.href = url;
+        } else {
+          setError('Open this app on the web to complete payment for now.');
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not join league');
     } finally {
       setBusy(false);
     }

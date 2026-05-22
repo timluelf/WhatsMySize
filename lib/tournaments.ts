@@ -97,6 +97,21 @@ export async function updateTournamentFee(
   if (error) throw error;
 }
 
+export async function findTournamentByCode(
+  code: string
+): Promise<Tournament | null> {
+  if (!isSupabaseConfigured) return null;
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+  const { data, error } = await supabase!
+    .from('tournaments')
+    .select('id, name, description, size, join_code, status, created_by, registration_fee_cents')
+    .eq('join_code', trimmed)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToTournament(data) : null;
+}
+
 export async function joinTournamentByCode(
   code: string,
   teamId: string

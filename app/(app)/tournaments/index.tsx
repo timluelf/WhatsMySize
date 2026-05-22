@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,10 +15,12 @@ import { Input } from '@/components/Input';
 import { SegmentedTabs } from '@/components/SegmentedTabs';
 import { useAuth } from '@/lib/auth';
 import { dollarsToCents, formatFee } from '@/lib/money';
+import { startCheckout } from '@/lib/payments';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   Tournament,
   createTournament,
+  findTournamentByCode,
   joinTournamentByCode,
   listTournamentsCreatedBy,
   listTournamentsForTeam,
@@ -93,16 +96,37 @@ export default function TournamentsScreen() {
     setError(null);
     setBusy(true);
     try {
-      await joinTournamentByCode(code, teamId);
-      setCode('');
-      await refresh();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not join';
-      if (msg.toLowerCase().includes('row-level security')) {
-        setError('This tournament requires a registration fee. Payment isn\'t wired yet — once Stripe is connected, you can pay and join.');
-      } else {
-        setError(msg);
+      const tournament = await findTournamentByCode(code);
+      if (!tournament) {
+        setError('No tournament found with that code');
+        return;
       }
+      if (tournament.status !== 'open') {
+        setError('Tournament has already started');
+        return;
+      }
+      if (tournament.registrationFeeCents === 0) {
+        await joinTournamentByCode(code, teamId);
+        setCode('');
+        await refresh();
+      } else {
+        const returnUrl =
+          Platform.OS === 'web' && typeof window !== 'undefined'
+            ? `${window.location.origin}/tournaments/${tournament.id}`
+            : `dartball://tournaments/${tournament.id}`;
+        const url = await startCheckout({
+          teamId,
+          target: { kind: 'tournament', tournamentId: tournament.id },
+          returnUrl,
+        });
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          window.location.href = url;
+        } else {
+          setError('Open this app on the web to complete payment for now.');
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not join');
     } finally {
       setBusy(false);
     }
