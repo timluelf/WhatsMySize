@@ -21,9 +21,11 @@ import {
   computeStandings,
   fetchLeagueGames,
 } from '@/lib/leagueStats';
-import { LeagueWithTeams, getLeague, leaveLeague } from '@/lib/leagues';
+import { LeagueWithTeams, getLeague, leaveLeague, updateLeagueFee } from '@/lib/leagues';
+import { centsToDollarsInput, dollarsToCents, formatFee } from '@/lib/money';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { colors, radius, spacing, typography } from '@/lib/theme';
+import { Input } from '@/components/Input';
 
 export default function LeagueDetailScreen() {
   const router = useRouter();
@@ -36,6 +38,8 @@ export default function LeagueDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editingFee, setEditingFee] = useState(false);
+  const [feeInput, setFeeInput] = useState('');
 
   const refresh = useCallback(async () => {
     if (!leagueId || !isSupabaseConfigured) {
@@ -92,10 +96,26 @@ export default function LeagueDetailScreen() {
     }
   }
 
+  async function handleSaveFee() {
+    if (!league) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await updateLeagueFee(league.id, dollarsToCents(feeInput));
+      setEditingFee(false);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update fee');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!profile) return null;
 
   const isMyTeamInLeague =
     profile.teamId && league?.teams.some((t) => t.id === profile.teamId);
+  const isCreator = league && profile && league.createdBy === profile.id;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -115,9 +135,50 @@ export default function LeagueDetailScreen() {
                 <Text style={styles.muted}>{league.description}</Text>
               ) : null}
               <Text style={styles.muted}>
-                {league.teams.length} {league.teams.length === 1 ? 'team' : 'teams'}
+                {league.teams.length} {league.teams.length === 1 ? 'team' : 'teams'} ·{' '}
+                {formatFee(league.registrationFeeCents)} entry
               </Text>
             </View>
+
+            {isCreator ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Registration fee</Text>
+                {editingFee ? (
+                  <>
+                    <Input
+                      label="Fee per team ($)"
+                      placeholder="0"
+                      value={feeInput}
+                      onChangeText={setFeeInput}
+                      keyboardType="decimal-pad"
+                      autoFocus
+                    />
+                    <Button label="Save fee" onPress={handleSaveFee} loading={busy} />
+                    <Button
+                      label="Cancel"
+                      variant="ghost"
+                      onPress={() => setEditingFee(false)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.muted}>
+                      {league.registrationFeeCents === 0
+                        ? 'Free to join'
+                        : `${formatFee(league.registrationFeeCents)} per team`}
+                    </Text>
+                    <Button
+                      label="Edit fee"
+                      variant="secondary"
+                      onPress={() => {
+                        setFeeInput(centsToDollarsInput(league.registrationFeeCents));
+                        setEditingFee(true);
+                      }}
+                    />
+                  </>
+                )}
+              </View>
+            ) : null}
 
             {isMyTeamInLeague ? (
               <View style={styles.card}>

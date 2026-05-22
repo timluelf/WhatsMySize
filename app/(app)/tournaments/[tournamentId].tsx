@@ -28,7 +28,9 @@ import {
   listAllRegisteredTeams,
   removeTeamFromTournament,
   reportMatchResult,
+  updateTournamentFee,
 } from '@/lib/tournaments';
+import { centsToDollarsInput, dollarsToCents, formatFee } from '@/lib/money';
 import {
   TournamentLeaders,
   computeTournamentLeaders,
@@ -50,6 +52,8 @@ export default function TournamentDetailScreen() {
   const [copied, setCopied] = useState(false);
   const [editingMatch, setEditingMatch] = useState<TournamentMatch | null>(null);
   const [allTeams, setAllTeams] = useState<RegisteredTeam[]>([]);
+  const [editingFee, setEditingFee] = useState(false);
+  const [feeInput, setFeeInput] = useState('');
 
   const isCreator = profile && t && t.createdBy === profile.id;
   const isAdmin = profile?.isAdmin ?? false;
@@ -192,6 +196,21 @@ export default function TournamentDetailScreen() {
     }
   }
 
+  async function handleSaveFee() {
+    if (!t) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await updateTournamentFee(t.id, dollarsToCents(feeInput));
+      setEditingFee(false);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update fee');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const availableTeams = useMemo(() => {
     if (!t) return [];
     const inTournament = new Set(t.teams.map((tt) => tt.id));
@@ -216,9 +235,50 @@ export default function TournamentDetailScreen() {
               <Text style={styles.title}>{t.name}</Text>
               <Text style={styles.muted}>
                 {t.size} teams · {t.status.replace('_', ' ')} ·{' '}
-                {t.teams.length}/{t.size} joined
+                {t.teams.length}/{t.size} joined ·{' '}
+                {formatFee(t.registrationFeeCents)} entry
               </Text>
             </View>
+
+            {isCreator ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Registration fee</Text>
+                {editingFee ? (
+                  <>
+                    <Input
+                      label="Fee per team ($)"
+                      placeholder="0"
+                      value={feeInput}
+                      onChangeText={setFeeInput}
+                      keyboardType="decimal-pad"
+                      autoFocus
+                    />
+                    <Button label="Save fee" onPress={handleSaveFee} loading={busy} />
+                    <Button
+                      label="Cancel"
+                      variant="ghost"
+                      onPress={() => setEditingFee(false)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.muted}>
+                      {t.registrationFeeCents === 0
+                        ? 'Free to join'
+                        : `${formatFee(t.registrationFeeCents)} per team`}
+                    </Text>
+                    <Button
+                      label="Edit fee"
+                      variant="secondary"
+                      onPress={() => {
+                        setFeeInput(centsToDollarsInput(t.registrationFeeCents));
+                        setEditingFee(true);
+                      }}
+                    />
+                  </>
+                )}
+              </View>
+            ) : null}
 
             {t.status === 'open' ? (
               <View style={styles.card}>

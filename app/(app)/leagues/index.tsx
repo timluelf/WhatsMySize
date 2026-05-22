@@ -18,6 +18,7 @@ import {
   joinLeagueByCode,
   listLeaguesForTeam,
 } from '@/lib/leagues';
+import { dollarsToCents, formatFee } from '@/lib/money';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 
@@ -28,6 +29,7 @@ export default function LeaguesScreen() {
   const [loading, setLoading] = useState(true);
   const [code, setCode] = useState('');
   const [newName, setNewName] = useState('');
+  const [newFee, setNewFee] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,7 +94,14 @@ export default function LeaguesScreen() {
       setCode('');
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not join league');
+      const msg = err instanceof Error ? err.message : 'Could not join league';
+      // RLS will reject the insert if the league has a fee and there's no
+      // succeeded payment yet. Surface a clearer message.
+      if (msg.toLowerCase().includes('row-level security')) {
+        setError('This league requires a registration fee. Payment isn\'t wired yet — once Stripe is connected, you can pay and join.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -108,8 +117,10 @@ export default function LeaguesScreen() {
         description: null,
         userId: profile.id,
         teamId,
+        registrationFeeCents: dollarsToCents(newFee),
       });
       setNewName('');
+      setNewFee('');
       await refresh();
       router.push(`/leagues/${league.id}`);
     } catch (err) {
@@ -147,11 +158,10 @@ export default function LeaguesScreen() {
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.leagueName}>{league.name}</Text>
-                  {league.description ? (
-                    <Text style={styles.leagueDesc} numberOfLines={1}>
-                      {league.description}
-                    </Text>
-                  ) : null}
+                  <Text style={styles.leagueDesc} numberOfLines={1}>
+                    {formatFee(league.registrationFeeCents)}
+                    {league.description ? ` · ${league.description}` : ''}
+                  </Text>
                 </View>
                 <Text style={styles.chevron}>›</Text>
               </Pressable>
@@ -185,13 +195,20 @@ export default function LeaguesScreen() {
             <Text style={styles.cardTitle}>Start a new league</Text>
             <Text style={styles.muted}>
               Your team is added automatically. Share the join code with other managers to
-              add their teams.
+              add their teams. Leave fee blank for free entry.
             </Text>
             <Input
               placeholder="League name"
               value={newName}
               onChangeText={setNewName}
               autoCapitalize="words"
+            />
+            <Input
+              label="Registration fee per team ($)"
+              placeholder="e.g. 25"
+              value={newFee}
+              onChangeText={setNewFee}
+              keyboardType="decimal-pad"
             />
             <Button
               label="Create league"

@@ -13,6 +13,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { SegmentedTabs } from '@/components/SegmentedTabs';
 import { useAuth } from '@/lib/auth';
+import { dollarsToCents, formatFee } from '@/lib/money';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   Tournament,
@@ -37,6 +38,7 @@ export default function TournamentsScreen() {
   const [code, setCode] = useState('');
   const [newName, setNewName] = useState('');
   const [newSize, setNewSize] = useState<'4' | '8' | '16'>('8');
+  const [newFee, setNewFee] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,7 +97,12 @@ export default function TournamentsScreen() {
       setCode('');
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not join');
+      const msg = err instanceof Error ? err.message : 'Could not join';
+      if (msg.toLowerCase().includes('row-level security')) {
+        setError('This tournament requires a registration fee. Payment isn\'t wired yet — once Stripe is connected, you can pay and join.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -111,8 +118,10 @@ export default function TournamentsScreen() {
         description: null,
         size: parseInt(newSize, 10),
         userId: profile.id,
+        registrationFeeCents: dollarsToCents(newFee),
       });
       setNewName('');
+      setNewFee('');
       await refresh();
       router.push(`/tournaments/${t.id}`);
     } catch (err) {
@@ -147,7 +156,8 @@ export default function TournamentsScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName}>{t.name}</Text>
                   <Text style={styles.rowMeta}>
-                    {t.size} teams · {t.status.replace('_', ' ')}
+                    {t.size} teams · {t.status.replace('_', ' ')} ·{' '}
+                    {formatFee(t.registrationFeeCents)}
                   </Text>
                 </View>
                 <Text style={styles.chevron}>›</Text>
@@ -182,7 +192,7 @@ export default function TournamentsScreen() {
             <Text style={styles.cardTitle}>Start a new bracket</Text>
             <Text style={styles.muted}>
               Pick a size. Once that many teams have joined, you can generate the bracket
-              from the tournament page.
+              from the tournament page. Leave fee blank for free entry.
             </Text>
             <Input
               placeholder="Tournament name"
@@ -194,6 +204,13 @@ export default function TournamentsScreen() {
               value={newSize}
               onChange={(v) => setNewSize(v as '4' | '8' | '16')}
               tabs={SIZE_OPTIONS}
+            />
+            <Input
+              label="Registration fee per team ($)"
+              placeholder="e.g. 50"
+              value={newFee}
+              onChangeText={setNewFee}
+              keyboardType="decimal-pad"
             />
             <Button
               label="Create tournament"

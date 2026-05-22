@@ -11,6 +11,7 @@ export type Tournament = {
   joinCode: string;
   status: TournamentStatus;
   createdBy: string;
+  registrationFeeCents: number;
 };
 
 export type TournamentTeam = {
@@ -45,6 +46,7 @@ type TournamentRow = {
   join_code: string;
   status: TournamentStatus;
   created_by: string;
+  registration_fee_cents: number;
 };
 
 type MatchRow = {
@@ -65,6 +67,7 @@ export async function createTournament(params: {
   description: string | null;
   size: number;
   userId: string;
+  registrationFeeCents?: number;
 }): Promise<Tournament> {
   if (!isSupabaseConfigured) throw new Error('Supabase not configured');
   const { data, error } = await supabase!
@@ -74,11 +77,24 @@ export async function createTournament(params: {
       description: params.description?.trim() || null,
       size: params.size,
       created_by: params.userId,
+      registration_fee_cents: params.registrationFeeCents ?? 0,
     })
-    .select('id, name, description, size, join_code, status, created_by')
+    .select('id, name, description, size, join_code, status, created_by, registration_fee_cents')
     .single();
   if (error) throw error;
   return rowToTournament(data);
+}
+
+export async function updateTournamentFee(
+  tournamentId: string,
+  registrationFeeCents: number
+): Promise<void> {
+  if (!isSupabaseConfigured) throw new Error('Supabase not configured');
+  const { error } = await supabase!
+    .from('tournaments')
+    .update({ registration_fee_cents: registrationFeeCents })
+    .eq('id', tournamentId);
+  if (error) throw error;
 }
 
 export async function joinTournamentByCode(
@@ -91,7 +107,7 @@ export async function joinTournamentByCode(
 
   const { data: tournament, error } = await supabase!
     .from('tournaments')
-    .select('id, name, description, size, join_code, status, created_by')
+    .select('id, name, description, size, join_code, status, created_by, registration_fee_cents')
     .eq('join_code', trimmed)
     .maybeSingle();
   if (error) throw error;
@@ -132,7 +148,7 @@ export async function listTournamentsForTeam(teamId: string): Promise<Tournament
   if (!isSupabaseConfigured) return [];
   const { data, error } = await supabase!
     .from('tournament_teams')
-    .select('tournaments(id, name, description, size, join_code, status, created_by)')
+    .select('tournaments(id, name, description, size, join_code, status, created_by, registration_fee_cents)')
     .eq('team_id', teamId);
   if (error) throw error;
   const out: Tournament[] = [];
@@ -147,7 +163,7 @@ export async function listTournamentsCreatedBy(userId: string): Promise<Tourname
   if (!isSupabaseConfigured) return [];
   const { data, error } = await supabase!
     .from('tournaments')
-    .select('id, name, description, size, join_code, status, created_by')
+    .select('id, name, description, size, join_code, status, created_by, registration_fee_cents')
     .eq('created_by', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -159,7 +175,7 @@ export async function getTournament(id: string): Promise<TournamentDetail | null
   const { data: tourny, error } = await supabase!
     .from('tournaments')
     .select(
-      'id, name, description, size, join_code, status, created_by, tournament_teams(seed, teams(id, name))'
+      'id, name, description, size, join_code, status, created_by, registration_fee_cents, tournament_teams(seed, teams(id, name))'
     )
     .eq('id', id)
     .maybeSingle();
@@ -505,6 +521,7 @@ function rowToTournament(row: TournamentRow): Tournament {
     joinCode: row.join_code,
     status: row.status,
     createdBy: row.created_by,
+    registrationFeeCents: row.registration_fee_cents ?? 0,
   };
 }
 
